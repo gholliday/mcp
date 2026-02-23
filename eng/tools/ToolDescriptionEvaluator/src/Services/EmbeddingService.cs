@@ -28,7 +28,14 @@ public class EmbeddingService(HttpClient httpClient, string endpoint, string api
             Content = content
         };
 
-        request.Headers.Add("api-key", _apiKey);
+        if (TryGetBearerToken(_apiKey, out var bearerToken))
+        {
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bearerToken);
+        }
+        else
+        {
+            request.Headers.Add("api-key", _apiKey);
+        }
 
         var response = await _httpClient.SendAsync(request);
         response.EnsureSuccessStatusCode();
@@ -47,5 +54,44 @@ public class EmbeddingService(HttpClient httpClient, string endpoint, string api
         }
 
         return embeddingResponse.Data[0].Embedding;
+    }
+
+    private static bool TryGetBearerToken(string apiKeyOrToken, out string? bearerToken)
+    {
+        bearerToken = null;
+        if (string.IsNullOrWhiteSpace(apiKeyOrToken))
+        {
+            return false;
+        }
+
+        const string bearerPrefix = "Bearer ";
+        if (apiKeyOrToken.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            var tokenValue = apiKeyOrToken[bearerPrefix.Length..].Trim();
+            if (string.IsNullOrWhiteSpace(tokenValue))
+            {
+                return false;
+            }
+
+            bearerToken = tokenValue;
+            return true;
+        }
+
+        var dotCount = 0;
+        foreach (var character in apiKeyOrToken)
+        {
+            if (character == '.')
+            {
+                dotCount++;
+            }
+        }
+
+        if (dotCount == 2)
+        {
+            bearerToken = apiKeyOrToken.Trim();
+            return true;
+        }
+
+        return false;
     }
 }
